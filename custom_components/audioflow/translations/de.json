@@ -1,0 +1,17 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Audioflow",
+                "description": "Entweder hostname / IP oder URL vom Gerät eingeben.",
+                "data": {
+                    "base_url": "Base URL"
+                }
+            }
+        },
+        "error": {
+            "invalid_url": "URL ungültig",
+            "connection": "Verbindung fehlgeschlagen"
+        }
+    }
+}

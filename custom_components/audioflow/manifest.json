@@ -1,0 +1,14 @@
+{
+  "domain": "audioflow",
+  "name": "Audioflow",
+  "version": "0.1.0",
+  "integration_type": "device",
+  "codeowners": [
+    "@siku2"
+  ],
+  "config_flow": true,
+  "requirements": [
+    "pydantic"
+  ],
+  "iot_class": "local_polling"
+}
