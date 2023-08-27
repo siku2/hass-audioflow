@@ -2,10 +2,10 @@ import asyncio
 import dataclasses
 import logging
 import re
+from typing import Any, Literal, TypedDict
 
 import aiohttp
-import pydantic
-import yarl
+from yarl import URL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ _WIFI_RE = re.compile(
 )
 
 
-@dataclasses.dataclass(kw_only=True)
+@dataclasses.dataclass(slots=True, kw_only=True)
 class WifiInfo:
     ssid: str
     channel: int
@@ -32,10 +32,7 @@ class WifiInfo:
         )
 
 
-_CACHED_WIFI_INFO_ATTR = "_cached_wifi_info"
-
-
-class SwitchModel(pydantic.BaseModel):
+class Switch(TypedDict, total=True):
     name: str
     model: str
     serial: str
@@ -43,90 +40,76 @@ class SwitchModel(pydantic.BaseModel):
     wifi: str
     alexa: bool
 
-    def parse_wifi_info(self) -> WifiInfo | None:
-        try:
-            return WifiInfo.parse(self.wifi)
-        except Exception as exc:
-            _LOGGER.warning("failed to parse wifi: %r", self.wifi, exc_info=exc)
-            return None
 
-    def wifi_info(self) -> WifiInfo | None:
-        try:
-            return self.__dict__[_CACHED_WIFI_INFO_ATTR]
-        except KeyError:
-            pass
-
-        info = self.parse_wifi_info()
-        self.__dict__[_CACHED_WIFI_INFO_ATTR] = info
-        return info
-
-
-class ZoneModel(pydantic.BaseModel):
-    zone_id: int = pydantic.Field(alias="id")
+class Zone(TypedDict, total=True):
+    id: int
     name: str
-    zone_enabled: bool = pydantic.Field(alias="enabled")
-    output_enabled: bool = pydantic.Field(alias="state")
+    enabled: int
+    state: Literal["on"] | Literal["off"]
 
 
-@dataclasses.dataclass(kw_only=True)
-class AudioflowDeviceState:
-    switch: SwitchModel
-    zones: list[ZoneModel]
+@dataclasses.dataclass(slots=True, kw_only=True)
+class FullState:
+    switch: Switch
+    zones: list[Zone]
+    wifi: WifiInfo | None
 
-    def zone_by_id(self, zone_id: int) -> ZoneModel | None:
-        return next((zone for zone in self.zones if zone.zone_id == zone_id), None)
-
-
-class _ZonesModel(pydantic.BaseModel):
-    zones: list[ZoneModel]
+    def zone_by_id(self, zone_id: int) -> Zone | None:
+        return next((zone for zone in self.zones if zone["id"] == zone_id), None)
 
 
-class AudioflowDeviceClient:
+class _ZonesResponse(TypedDict):
+    zones: list[Zone]
+
+
+class Client:
     _session: aiohttp.ClientSession
-    _base_url: yarl.URL
+    _base_url: URL
     _timeout: aiohttp.ClientTimeout
 
-    def __init__(
-        self, session: aiohttp.ClientSession, base_url: yarl.URL | str
-    ) -> None:
+    def __init__(self, session: aiohttp.ClientSession, base_url: URL | str) -> None:
         self._session = session
-        self._base_url = yarl.URL(base_url)
+        self._base_url = URL(base_url)
 
         self._timeout = aiohttp.ClientTimeout(total=5.0)
 
-    async def switch(self) -> SwitchModel:
-        _LOGGER.debug("reading switch with base url: %s", self._base_url)
+    async def _request(self, method: Literal["GET"], path: str) -> Any:
+        _LOGGER.debug("performing %s on %s", method, path)
         async with self._session.get(
-            self._base_url / "switch",
+            self._base_url / path,
             timeout=self._timeout,
             raise_for_status=True,
         ) as resp:
-            raw = await resp.json(content_type=None)
-        return SwitchModel.parse_obj(raw)
+            data = await resp.json(content_type=None)
+        _LOGGER.debug("response: %s", data)
+        return data
 
-    async def zones(self) -> list[ZoneModel]:
+    async def switch(self) -> Switch:
+        _LOGGER.debug("reading switch with base url: %s", self._base_url)
+        return await self._request("GET", "switch")
+
+    async def zones(self) -> list[Zone]:
         _LOGGER.debug("reading zones with base url: %s", self._base_url)
-        async with self._session.get(
-            self._base_url / "zones",
-            timeout=self._timeout,
-            raise_for_status=True,
-        ) as resp:
-            raw = await resp.json(content_type=None)
-        zones = _ZonesModel.parse_obj(raw).zones
-        for zone in zones:
-            # LOGIC: the API returns a zone 0 which is actually supposed to be zone 1 when used in the other APIs
-            zone.zone_id += 1
-        # make sure we're in ascending order
-        zones.sort(key=lambda zone: zone.zone_id)
+        raw: _ZonesResponse = await self._request("GET", "zones")
+        zones = raw["zones"]
+        # fix the broken zone id assignment.
+        # ids returned by this API start from 0, but the other APIs expect the id to be 1-based
+        for zone_id, zone in enumerate(zones, 1):
+            zone["id"] = zone_id
         return zones
 
-    async def full_state(self) -> AudioflowDeviceState:
+    async def full_state(self) -> FullState:
         switch, zones = await asyncio.gather(self.switch(), self.zones())
-        return AudioflowDeviceState(switch=switch, zones=zones)
+        try:
+            wifi = WifiInfo.parse(switch["wifi"])
+        except ValueError:
+            _LOGGER.warn(f"failed to parse wifi info {switch['wifi']!r}")
+            wifi = None
+        return FullState(switch=switch, zones=zones, wifi=wifi)
 
-    async def _send_command(self, url: yarl.URL, data: str) -> None:
+    async def _send_command(self, path: str, data: str) -> None:
         async with self._session.put(
-            url,
+            self._base_url / path,
             data=data,
             headers={"Content-Type": "text/plain"},
             timeout=self._timeout,
@@ -141,9 +124,7 @@ class AudioflowDeviceClient:
             is_on,
             self._base_url,
         )
-        await self._send_command(
-            self._base_url / "zones" / str(zone_id), "1" if is_on else "0"
-        )
+        await self._send_command(f"zones/{zone_id}", "1" if is_on else "0")
 
     async def set_zone_config(
         self, zone_id: int, *, enabled: bool, zone_name: str
@@ -156,6 +137,6 @@ class AudioflowDeviceClient:
             self._base_url,
         )
         await self._send_command(
-            self._base_url / "zonename" / str(zone_id),
+            f"zonename/{zone_id}",
             ("1" if enabled else "0") + zone_name.strip(),
         )

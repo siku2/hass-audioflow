@@ -13,5 +13,32 @@
             "invalid_url": "URL invalid",
             "connection": "Connection failed"
         }
+    },
+    "entity": {
+        "sensor": {
+            "model": {
+                "name": "Model"
+            },
+            "serial": {
+                "name": "Serial Number"
+            },
+            "version": {
+                "name": "Version"
+            },
+            "wifi_ssid": {
+                "name": "WiFi SSID"
+            },
+            "wifi_channel": {
+                "name": "WiFi Channel"
+            },
+            "wifi_strength": {
+                "name": "WiFi Strength"
+            }
+        },
+        "switch": {
+            "enabled": {
+                "name": "{name} Enabled"
+            }
+        }
     }
 }

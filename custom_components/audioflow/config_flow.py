@@ -1,14 +1,14 @@
 import contextlib
 import logging
-import typing
+from typing import Any
 
 import homeassistant.helpers.aiohttp_client
 import voluptuous as vol
-import yarl
 from homeassistant.config_entries import ConfigFlow
 from homeassistant.data_entry_flow import FlowResult
+from yarl import URL
 
-from .api import AudioflowDeviceClient
+from . import api
 from .const import CONF_BASE_URL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,16 +23,16 @@ class AudioflowConfigFlowHandler(ConfigFlow, domain=DOMAIN):
         super().__init__()
         self._errors = {}
 
-    def _coerce_base_url(self, raw_url: str) -> yarl.URL | None:
+    def _coerce_base_url(self, raw_url: str) -> URL | None:
         try:
-            url = yarl.URL(raw_url)
+            url = URL(raw_url)
         except Exception:
             self._errors[CONF_BASE_URL] = "invalid_url"
             return None
 
         if not url.is_absolute():
             try:
-                url = yarl.URL(f"http://{raw_url}")
+                url = URL(f"http://{raw_url}")
             except Exception:
                 self._errors[CONF_BASE_URL] = "invalid_url"
                 return None
@@ -45,7 +45,7 @@ class AudioflowConfigFlowHandler(ConfigFlow, domain=DOMAIN):
         return url
 
     async def async_step_user(
-        self, user_input: dict[str, typing.Any] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         if user_input is not None:
             valid = False
@@ -68,7 +68,7 @@ class AudioflowConfigFlowHandler(ConfigFlow, domain=DOMAIN):
 
         return await self._show_config_form(user_input)
 
-    async def _show_config_form(self, user_input: dict[str, typing.Any]) -> FlowResult:
+    async def _show_config_form(self, user_input: dict[str, Any]) -> FlowResult:
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
@@ -79,13 +79,13 @@ class AudioflowConfigFlowHandler(ConfigFlow, domain=DOMAIN):
             errors=self._errors,
         )
 
-    async def _test_base_url(self, base_url: yarl.URL) -> bool:
+    async def _test_base_url(self, base_url: URL) -> bool:
         _LOGGER.info("testing base URL: %s", base_url)
         try:
             session = homeassistant.helpers.aiohttp_client.async_create_clientsession(
                 self.hass
             )
-            client = AudioflowDeviceClient(session, base_url)
+            client = api.Client(session, base_url)
             await client.full_state()
             return True
         except Exception as exc:

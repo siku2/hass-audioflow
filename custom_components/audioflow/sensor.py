@@ -4,11 +4,11 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import AudioflowUpdateCoordinator
+from . import Coordinator
 from .const import DOMAIN
 from .entity import AudioflowEntity
 
@@ -16,7 +16,7 @@ from .entity import AudioflowEntity
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    coordinator: AudioflowUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: Coordinator = hass.data[DOMAIN][entry.entry_id]
     entity_classes = [
         AfModel,
         AfSerial,
@@ -34,91 +34,67 @@ async def async_setup_entry(
 
 
 class AudioflowSensorEntity(AudioflowEntity, SensorEntity):
-    @property
-    def has_entity_name(self) -> bool:
-        return True
-
-    @property
-    def entity_category(self) -> EntityCategory:
-        return EntityCategory.DIAGNOSTIC
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
 
 class AfModel(AudioflowSensorEntity):
-    @property
-    def name(self) -> str:
-        return "Model"
+    _attr_translation_key = "model"
 
     @property
     def native_value(self) -> str:
-        return self.coordinator.data.switch.model
+        return self.coordinator.data.switch["model"]
 
 
 class AfSerial(AudioflowSensorEntity):
-    @property
-    def name(self) -> str:
-        return "Serial"
+    _attr_translation_key = "serial"
 
     @property
     def native_value(self) -> str:
-        return self.coordinator.data.switch.serial
+        return self.coordinator.data.switch["serial"]
 
 
 class AfVersion(AudioflowSensorEntity):
-    @property
-    def name(self) -> str:
-        return "Version"
+    _attr_translation_key = "version"
 
     @property
     def native_value(self) -> str:
-        return self.coordinator.data.switch.version
+        return self.coordinator.data.switch["version"]
 
 
 class AfWifiSsid(AudioflowSensorEntity):
-    @property
-    def name(self) -> str:
-        return "WiFi SSID"
+    _attr_translation_key = "wifi_ssid"
+    _attr_icon = "mdi:wifi"
 
     @property
     def native_value(self) -> str | None:
-        info = self.coordinator.data.switch.wifi_info()
+        info = self.coordinator.data.wifi
         if not info:
             return None
         return info.ssid
 
 
 class AfWifiChannel(AudioflowSensorEntity):
-    @property
-    def name(self) -> str:
-        return "WiFi Channel"
+    _attr_translation_key = "wifi_channel"
+    _attr_icon = "mdi:wifi"
 
     @property
     def native_value(self) -> int | None:
-        info = self.coordinator.data.switch.wifi_info()
+        info = self.coordinator.data.wifi
         if not info:
             return None
         return info.channel
 
 
 class AfWifiStrength(AudioflowSensorEntity):
-    @property
-    def name(self) -> str:
-        return "WiFi Strength"
+    _attr_translation_key = "wifi_strength"
+
+    _attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
+    _attr_native_unit_of_measurement = "dBm"
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def native_value(self) -> float | None:
-        info = self.coordinator.data.switch.wifi_info()
+        info = self.coordinator.data.wifi
         if not info:
             return None
         return info.strength
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def device_class(self) -> SensorDeviceClass:
-        return SensorDeviceClass.SIGNAL_STRENGTH
-
-    @property
-    def native_unit_of_measurement(self) -> str:
-        return "dBm"

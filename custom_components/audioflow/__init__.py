@@ -1,74 +1,71 @@
-import asyncio
 import logging
 from datetime import timedelta
 
-import homeassistant.helpers.aiohttp_client
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Config, HomeAssistant
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import AudioflowDeviceClient, AudioflowDeviceState
-from .const import CONF_BASE_URL, DOMAIN, PLATFORMS
+from . import api
+from .const import CONF_BASE_URL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-SCAN_INTERVAL = timedelta(seconds=60)
-
-
-async def async_setup(hass: HomeAssistant, config: Config) -> bool:
-    return True
+PLATFORMS = ["sensor", "switch"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    if hass.data.get(DOMAIN) is None:
-        hass.data.setdefault(DOMAIN, {})
-
     base_url: str = entry.data[CONF_BASE_URL]
-    session = homeassistant.helpers.aiohttp_client.async_get_clientsession(hass)
-    client = AudioflowDeviceClient(session, base_url)
-
-    coordinator = AudioflowUpdateCoordinator(hass, client=client)
+    coordinator = Coordinator(
+        hass, client=api.Client(async_get_clientsession(hass), base_url)
+    )
     await coordinator.async_config_entry_first_refresh()
 
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
-    for platform in PLATFORMS:
-        hass.async_add_job(
-            hass.config_entries.async_forward_entry_setup(entry, platform)
-        )
-
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    platform_unload_coros = (
-        hass.config_entries.async_forward_entry_unload(entry, platform)
-        for platform in PLATFORMS
-    )
-    unloaded = all(await asyncio.gather(*platform_unload_coros))
+    ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if ok:
+        coordinator: Coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        await coordinator.async_shutdown()
 
-    if unloaded:
-        hass.data[DOMAIN].pop(entry.entry_id)
-
-    return unloaded
+    return ok
 
 
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
+class Coordinator(DataUpdateCoordinator[api.FullState]):
+    client: api.Client
 
-
-class AudioflowUpdateCoordinator(DataUpdateCoordinator[AudioflowDeviceState]):
-    client: AudioflowDeviceClient
-
-    def __init__(self, hass: HomeAssistant, client: AudioflowDeviceClient) -> None:
-        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
+    def __init__(self, hass: HomeAssistant, client: api.Client) -> None:
+        super().__init__(
+            hass, _LOGGER, name=DOMAIN, update_interval=timedelta(seconds=60)
+        )
         self.client = client
 
-    async def _async_update_data(self) -> AudioflowDeviceState:
+        self._device_info = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        assert self._device_info
+        return self._device_info
+
+    async def _async_update_data(self) -> api.FullState:
         try:
             return await self.client.full_state()
         except Exception as exc:
             _LOGGER.warning("failed to fetch state update", exc_info=exc)
             raise UpdateFailed() from exc
+
+    async def async_config_entry_first_refresh(self) -> None:
+        await super().async_config_entry_first_refresh()
+        self._device_info = DeviceInfo(
+            identifiers={(DOMAIN, self.data.switch["serial"])},
+            name=self.data.switch["name"],
+            model=self.data.switch["model"],
+            manufacturer="Audioflow",
+            sw_version=self.data.switch["version"],
+        )
