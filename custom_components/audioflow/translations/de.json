@@ -1,17 +1,61 @@
 {
-    "config": {
-        "step": {
-            "user": {
-                "title": "Audioflow",
-                "description": "Entweder hostname / IP oder URL vom Gerät eingeben.",
-                "data": {
-                    "base_url": "Base URL"
-                }
-            }
-        },
-        "error": {
-            "invalid_url": "URL ungültig",
-            "connection": "Verbindung fehlgeschlagen"
+  "config": {
+    "step": {
+      "user": {
+        "menu_options": {
+          "manual": "Mit IP oder Host hinzufügen",
+          "auto_discover": "Geräte im Netzwerk suchen"
         }
+      },
+      "manual": {
+        "title": "Manuel einrichten",
+        "description": "Entweder den Hostnamen, die IP oder die URL des Geräts angeben.",
+        "data": {
+          "base_url": "URL"
+        }
+      },
+      "auto_discover": {
+        "title": "Geräte werden gesucht"
+      },
+      "discovery_select": {
+        "title": "Gerät wählen",
+        "description": "Die folgenden neuen Geräte wurden entdeckt. Wähle das Gerät aus, das eingerichtet werden soll."
+      }
+    },
+    "error": {
+      "invalid_url": "URL ungültig",
+      "connection": "Verbindung fehlgeschlagen",
+      "no_discoveries": "Keine Geräte entdeckt"
+    },
+    "abort": {
+      "already_configured": "Gerät bereits konfiguriert"
     }
+  },
+  "entity": {
+    "sensor": {
+      "model": {
+        "name": "Modell"
+      },
+      "serial": {
+        "name": "Seriennummer"
+      },
+      "version": {
+        "name": "Version"
+      },
+      "wifi_ssid": {
+        "name": "WLAN SSID"
+      },
+      "wifi_channel": {
+        "name": "WLAN Kanal"
+      },
+      "wifi_strength": {
+        "name": "WLAN Stärke"
+      }
+    },
+    "switch": {
+      "enabled": {
+        "name": "{name} Aktiviert"
+      }
+    }
+  }
 }
