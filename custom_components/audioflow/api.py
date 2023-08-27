@@ -2,6 +2,10 @@ import asyncio
 import dataclasses
 import logging
 import re
+from collections.abc import AsyncIterator
+from contextlib import AbstractAsyncContextManager
+from ipaddress import IPv4Interface
+from types import TracebackType
 from typing import Any, Literal, TypedDict
 
 import aiohttp
@@ -140,3 +144,121 @@ class Client:
             f"zonename/{zone_id}",
             ("1" if enabled else "0") + zone_name.strip(),
         )
+
+
+@dataclasses.dataclass(slots=True, kw_only=True)
+class DiscoveryInfo:
+    host: str
+    model: str
+    serial_number: str
+
+
+def discover(
+    interface: IPv4Interface,
+    timeout: float | None = None,
+) -> AbstractAsyncContextManager[AsyncIterator[DiscoveryInfo]]:
+    return _DiscoveryContextManager(interface, timeout)
+
+
+async def discover_list(
+    interface: IPv4Interface, timeout: float
+) -> list[DiscoveryInfo]:
+    collected: list[DiscoveryInfo] = []
+    async with discover(interface, timeout) as discoverer:
+        async for discovery in discoverer:
+            collected.append(discovery)
+    return collected
+
+
+_DISCOVERY_PING = b"afping"
+_DISCOVERY_PONG = b"afpong"
+_DISCOVERY_MODEL_BYTES = 8
+_DISCOVERY_PORT = 10499
+
+
+def _cstr(b: bytes) -> str:
+    return b.split(b"\x00", 1)[0].decode("ascii")
+
+
+class _DiscoveryProtocol(asyncio.DatagramProtocol):
+    def __init__(self) -> None:
+        self.discoveries: asyncio.Queue[DiscoveryInfo | None] = asyncio.Queue()
+
+    def connection_made(self, transport: asyncio.DatagramTransport) -> None:
+        _LOGGER.debug("connection made")
+
+    def connection_lost(self, exc: Exception | None) -> None:
+        _LOGGER.debug("connection lost: %s", exc)
+        self.discoveries.put_nowait(None)
+
+    def datagram_received(self, data: bytes, addr: tuple[str | Any, int]) -> None:
+        if not data.startswith(_DISCOVERY_PONG):
+            return
+
+        _LOGGER.debug("received afpong from %s: %s", addr, data)
+
+        model_start = len(_DISCOVERY_PONG)
+        serial_start = model_start + _DISCOVERY_MODEL_BYTES
+        try:
+            info = DiscoveryInfo(
+                host=str(addr[0]),
+                model=_cstr(data[model_start:serial_start]),
+                serial_number=_cstr(data[serial_start:]),
+            )
+        except IndexError:
+            _LOGGER.exception("failed to parse afpong")
+            return
+
+        self.discoveries.put_nowait(info)
+
+    def error_received(self, exc: Exception) -> None:
+        _LOGGER.warn("received error", exc_info=exc)
+
+
+class _DiscoveryContextManager(
+    AbstractAsyncContextManager[AsyncIterator[DiscoveryInfo]]
+):
+    def __init__(self, interface: IPv4Interface, timeout: float | None) -> None:
+        self.interface = interface
+        self.timeout = timeout
+        self._transport: asyncio.DatagramTransport | None = None
+
+    async def _make_iter(
+        self, protocol: _DiscoveryProtocol
+    ) -> AsyncIterator[DiscoveryInfo]:
+        while True:
+            discovery = await protocol.discoveries.get()
+            if discovery is None:
+                break
+            yield discovery
+
+    async def __aenter__(self) -> AsyncIterator[DiscoveryInfo]:
+        loop = asyncio.get_running_loop()
+        self._transport, protocol = await loop.create_datagram_endpoint(
+            _DiscoveryProtocol,
+            local_addr=(str(self.interface.ip), _DISCOVERY_PORT),
+            allow_broadcast=True,
+        )
+        self._transport.sendto(
+            _DISCOVERY_PING,
+            (str(self.interface.network.broadcast_address), _DISCOVERY_PORT),
+        )
+
+        if self.timeout:
+            loop.call_later(self.timeout, self._on_timeout)
+
+        return self._make_iter(protocol)
+
+    def _on_timeout(self) -> None:
+        if self._transport:
+            self._transport.close()
+
+    async def __aexit__(
+        self,
+        __exc_type: type[BaseException] | None,
+        __exc_value: BaseException | None,
+        __traceback: TracebackType | None,
+    ) -> bool | None:
+        if self._transport:
+            self._transport.abort()
+        return None

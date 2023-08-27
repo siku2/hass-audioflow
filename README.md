@@ -12,6 +12,8 @@ _Support for [Audioflow](https://flow.audio) in Home Assistant._
 
 ## Installation
 
+Make sure you have [HACS](https://hacs.xyz) installed.
+
 1. Add this repository as a custom repository to HACS: [![Add Repository](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=siku2&repository=hass-audioflow&category=integration)
 2. Use HACS to install the integration.
 3. Restart Home Assistant.

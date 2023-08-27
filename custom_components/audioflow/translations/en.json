@@ -2,16 +2,33 @@
     "config": {
         "step": {
             "user": {
-                "title": "Audioflow",
-                "description": "Either provide the hostname / IP or URL of the device.",
+                "menu_options": {
+                    "manual": "Add by IP or Host",
+                    "auto_discover": "Discover devices in network"
+                }
+            },
+            "manual": {
+                "title": "Manual Setup",
+                "description": "Either provide the hostname, IP or URL of the device.",
                 "data": {
                     "base_url": "Base URL"
                 }
+            },
+            "auto_discover": {
+                "title": "Discovering Devices"
+            },
+            "discovery_select": {
+                "title": "Choose Device",
+                "description": "The following new devices were discovered. Pick the one to set up."
             }
         },
         "error": {
             "invalid_url": "URL invalid",
-            "connection": "Connection failed"
+            "connection": "Connection failed",
+            "no_discoveries": "No devices discovered"
+        },
+        "abort": {
+            "already_configured": "Device already configured"
         }
     },
     "entity": {

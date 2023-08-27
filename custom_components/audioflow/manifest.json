@@ -1,7 +1,9 @@
 {
     "domain": "audioflow",
     "name": "Audioflow",
-    "after_dependencies": [],
+    "after_dependencies": [
+        "network"
+    ],
     "bluetooth": [],
     "codeowners": [
         "@siku2"
