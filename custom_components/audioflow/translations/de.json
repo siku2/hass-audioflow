@@ -24,16 +24,20 @@
     },
     "error": {
       "invalid_url": "URL ungültig",
-      "connection": "Verbindung fehlgeschlagen"
+      "connection": "Verbindung fehlgeschlagen",
+      "no_discoveries": "Keine Geräte entdeckt"
     },
     "abort": {
+      "already_configured": "Gerät bereits konfiguriert"
     }
   },
   "entity": {
     "sensor": {
       "model": {
+        "name": "Modell"
       },
       "serial": {
+        "name": "Seriennummer"
       },
       "version": {
         "name": "Version"
@@ -50,6 +54,7 @@
     },
     "switch": {
       "enabled": {
+        "name": "{name} Aktiviert"
       }
     }
   }
