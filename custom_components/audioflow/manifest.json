@@ -1,14 +1,24 @@
 {
-  "domain": "audioflow",
-  "name": "Audioflow",
-  "version": "0.1.0",
-  "integration_type": "device",
-  "codeowners": [
-    "@siku2"
-  ],
-  "config_flow": true,
-  "requirements": [
-    "pydantic"
-  ],
-  "iot_class": "local_polling"
+    "domain": "audioflow",
+    "name": "Audioflow",
+    "after_dependencies": [],
+    "bluetooth": [],
+    "codeowners": [
+        "@siku2"
+    ],
+    "config_flow": true,
+    "dependencies": [],
+    "dhcp": [],
+    "documentation": "https://github.com/siku2/hass-audioflow",
+    "homekit": {},
+    "integration_type": "device",
+    "iot_class": "local_polling",
+    "issue_tracker": "https://github.com/siku2/hass-audioflow/issues",
+    "loggers": [],
+    "mqtt": [],
+    "requirements": [],
+    "ssdp": [],
+    "usb": [],
+    "version": "0.0.0",
+    "zeroconf": []
 }

@@ -1,27 +1,46 @@
-// See https://aka.ms/vscode-remote/devcontainer.json for format details.
 {
-	"image": "ghcr.io/ludeeus/devcontainer/integration:stable",
-	"name": "Blueprint integration development",
-	"context": "..",
-	"appPort": [
-		"9123:8123"
-	],
-	"postCreateCommand": "container install",
-	"extensions": [
-		"ms-python.python",
-		"github.vscode-pull-request-github",
-		"ryanluker.vscode-coverage-gutters",
-		"ms-python.vscode-pylance"
-	],
-	"settings": {
-		"files.eol": "\n",
-		"editor.tabSize": 4,
-		"python.pythonPath": "/usr/bin/python3",
-		"python.analysis.autoSearchPaths": false,
-		"python.formatting.provider": "black",
-		"editor.formatOnPaste": false,
-		"editor.formatOnSave": true,
-		"editor.formatOnType": true,
-		"files.trimTrailingWhitespace": true
-	}
+    "name": "Python",
+    "image": "mcr.microsoft.com/vscode/devcontainers/python:0-3.11-bullseye",
+    "postCreateCommand": "scripts/setup",
+    "forwardPorts": [
+        8123
+    ],
+    "portsAttributes": {
+        "8123": {
+            "label": "Home Assistant",
+            "onAutoForward": "notify"
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "DavidAnson.vscode-markdownlint",
+                "eamodio.gitlens",
+                "github.vscode-pull-request-github",
+                "ms-python.black-formatter",
+                "ms-python.isort",
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ryanluker.vscode-coverage-gutters",
+                "yzhang.markdown-all-in-one"
+            ],
+            "settings": {
+                "[markdown]": {
+                    "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
+                },
+                "[python]": {
+                    "editor.defaultFormatter": "ms-python.black-formatter"
+                },
+                "files.eol": "\n",
+                "python.analysis.autoSearchPaths": false,
+                "python.analysis.diagnosticSeverityOverrides": {
+                    "reportMissingTypeStubs": "none"
+                },
+                "python.formatting.provider": "none",
+                "python.pythonPath": "/usr/bin/python3"
+            }
+        }
+    },
+    "remoteUser": "vscode",
+    "features": {}
 }
