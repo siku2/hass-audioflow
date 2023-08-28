@@ -82,11 +82,6 @@ class AudioflowConfigFlowHandler(ConfigFlow, domain=DOMAIN):
                 all_discoveries = await _collect_discoveries_all_interfaces(
                     self.hass, _DISCOVERY_TIMEOUT
                 )
-                all_discoveries = [
-                    api.DiscoveryInfo(
-                        host="10.0.2.19", model="3S-4Z", serial_number="000203601"
-                    )
-                ]
                 self._discoveries = []
                 hosts_seen: set[str] = set()
                 serial_numbers_already_configured: set[str] = {
