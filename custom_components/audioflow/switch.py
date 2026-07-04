@@ -107,12 +107,17 @@ class ZoneEnabledSwitch(ZoneEntity, SwitchEntity):
 
     @property
     def name(self) -> str | None:
-        if (name_translation_key := self._name_translation_key) and (
-            name_template := self.platform.platform_translations.get(
-                name_translation_key
-            )
-        ):
+        if not (name_translation_key := self._name_translation_key):
+            return None
+
+        if (platform_data := getattr(self, "platform_data", None)) is not None:
+            platform_translations = platform_data.platform_translations
+        else:
+            platform_translations = self.platform.platform_translations
+
+        if name_template := platform_translations.get(name_translation_key):
             return name_template.format(name=self.af_zone["name"])
+
         return None
 
     @property
