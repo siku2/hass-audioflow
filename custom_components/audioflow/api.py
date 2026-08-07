@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager
 from ipaddress import IPv4Interface
 from types import TracebackType
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, Self, TypedDict
 
 import aiohttp
 from yarl import URL
@@ -26,7 +26,7 @@ class WifiInfo:
     strength: float
 
     @classmethod
-    def parse(cls, s: str):
+    def parse(cls, s: str) -> Self:
         m = _WIFI_RE.fullmatch(s)
         if not m:
             raise ValueError("invalid format")
@@ -49,7 +49,7 @@ class Zone(TypedDict, total=True):
     id: int
     name: str
     enabled: int
-    state: Literal["on"] | Literal["off"]
+    state: Literal["on", "off"]
 
 
 @dataclasses.dataclass(slots=True, kw_only=True)
@@ -107,7 +107,7 @@ class Client:
         try:
             wifi = WifiInfo.parse(switch["wifi"])
         except ValueError:
-            _LOGGER.warn(f"failed to parse wifi info {switch['wifi']!r}")
+            _LOGGER.warning("failed to parse wifi info %r", switch["wifi"])
             wifi = None
         return FullState(switch=switch, zones=zones, wifi=wifi)
 
@@ -212,7 +212,7 @@ class _DiscoveryProtocol(asyncio.DatagramProtocol):
         self.discoveries.put_nowait(info)
 
     def error_received(self, exc: Exception) -> None:
-        _LOGGER.warn("received error", exc_info=exc)
+        _LOGGER.warning("received error", exc_info=exc)
 
 
 class _DiscoveryContextManager(
