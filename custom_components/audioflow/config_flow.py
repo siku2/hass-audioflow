@@ -6,10 +6,9 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components.network import async_get_adapters
-from homeassistant.config_entries import ConfigFlow
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_BASE
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from yarl import URL
 
@@ -41,7 +40,7 @@ class AudioflowConfigFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="user", menu_options=["manual", "auto_discover"]
         )
@@ -51,7 +50,7 @@ class AudioflowConfigFlowHandler(ConfigFlow, domain=DOMAIN):
         user_input: dict[str, Any] | None = None,
         *,
         no_discoveries_made: bool = False,
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if no_discoveries_made:
             errors[CONF_BASE] = ERROR_NO_DISCOVERIES
@@ -75,7 +74,7 @@ class AudioflowConfigFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def async_step_auto_discover(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         if self._discoveries is None:
 
             async def inner() -> None:
@@ -120,7 +119,7 @@ class AudioflowConfigFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def async_step_discovery_select(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         if not self._discoveries:
             return await self.async_step_manual(no_discoveries_made=True)
 
@@ -168,7 +167,7 @@ class AudioflowConfigFlowHandler(ConfigFlow, domain=DOMAIN):
             state = await client.full_state()
             serial_number = state.switch["serial"]
         except Exception as exc:
-            _LOGGER.warning(f"failed to fetch full state for {base_url}", exc_info=exc)
+            _LOGGER.warning("failed to fetch full state for %s", base_url, exc_info=exc)
             errors[CONF_BASE] = ERROR_CONNECTION_FAILED
             return None
 
@@ -190,26 +189,11 @@ async def _iter_ipv4_interfaces(hass: HomeAssistant) -> AsyncIterator[IPv4Interf
 async def _collect_discoveries_all_interfaces(
     hass: HomeAssistant, timeout: float
 ) -> list[api.DiscoveryInfo]:
-    loop = asyncio.get_running_loop()
-    collected: list[api.DiscoveryInfo] = []
-
-    pending_tasks = 0
-    cond = asyncio.Condition()
-
-    async def inner(interface: IPv4Interface) -> None:
-        nonlocal pending_tasks
-        try:
-            collected.extend(await api.discover_list(interface, timeout))
-        finally:
-            pending_tasks -= 1
-            async with cond:
-                cond.notify_all()
-
-    async for interface in _iter_ipv4_interfaces(hass):
+    interfaces = [interface async for interface in _iter_ipv4_interfaces(hass)]
+    for interface in interfaces:
         _LOGGER.debug("scanning on interface: %s", interface)
-        pending_tasks += 1
-        loop.create_task(inner(interface))
 
-    async with cond:
-        await cond.wait_for(lambda: pending_tasks <= 0)
-    return collected
+    discovered = await asyncio.gather(
+        *(api.discover_list(interface, timeout) for interface in interfaces)
+    )
+    return [discovery for discoveries in discovered for discovery in discoveries]
