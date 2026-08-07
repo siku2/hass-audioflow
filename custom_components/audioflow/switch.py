@@ -52,20 +52,12 @@ class ZoneEntity(AudioflowEntity):
     def af_zone(self) -> Zone:
         state = self.coordinator.data
         zone = state.zone_by_id(self.zone_id)
-        # this shouldn't be possible
         assert zone, "audioflow suddenly no longer has zone"
         return zone
 
 
 class ZoneStateSwitch(ZoneEntity, SwitchEntity):
     _attr_icon = "mdi:speaker"
-
-    def __init__(
-        self, *, coordinator: Coordinator, config_entry: ConfigEntry, zone_id: int
-    ) -> None:
-        super().__init__(
-            coordinator=coordinator, config_entry=config_entry, zone_id=zone_id
-        )
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self.coordinator.client.set_zone_state(self.zone_id, True)
@@ -93,6 +85,14 @@ class ZoneEnabledSwitch(ZoneEntity, SwitchEntity):
     _attr_entity_category = EntityCategory.CONFIG
     _attr_translation_key = "enabled"
 
+    def __init__(
+        self, *, coordinator: Coordinator, config_entry: ConfigEntry, zone_id: int
+    ) -> None:
+        super().__init__(
+            coordinator=coordinator, config_entry=config_entry, zone_id=zone_id
+        )
+        self._attr_translation_placeholders = {"name": self.af_zone["name"]}
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self.coordinator.client.set_zone_config(
             self.zone_id, enabled=True, zone_name=self.af_zone["name"]
@@ -104,21 +104,6 @@ class ZoneEnabledSwitch(ZoneEntity, SwitchEntity):
             self.zone_id, enabled=False, zone_name=self.af_zone["name"]
         )
         await self.coordinator.async_refresh()
-
-    @property
-    def name(self) -> str | None:
-        if not (name_translation_key := self._name_translation_key):
-            return None
-
-        if (platform_data := getattr(self, "platform_data", None)) is not None:
-            platform_translations = platform_data.platform_translations
-        else:
-            platform_translations = self.platform.platform_translations
-
-        if name_template := platform_translations.get(name_translation_key):
-            return name_template.format(name=self.af_zone["name"])
-
-        return None
 
     @property
     def is_on(self) -> bool:
